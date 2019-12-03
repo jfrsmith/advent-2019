@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::iter::FromIterator;
 
 #[derive(Debug, Clone, Copy)]
 enum Direction {
@@ -140,4 +139,10 @@ fn part_2() {
         ),
         410
     );
+}
+
+#[test]
+fn part_2_complete() {
+    let (path_a, path_b) = parse_paths(include_str!("../input/day_3.txt"));
+    assert_eq!(get_intercept_min_steps(&path_a, &path_b), 13698);
 }
