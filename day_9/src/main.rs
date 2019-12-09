@@ -6,6 +6,12 @@ enum Mode {
 }
 
 #[derive(Debug)]
+enum Type {
+    Parameter,
+    Address
+}
+
+#[derive(Debug)]
 enum Instruction {
     Add(i64, i64, usize),
     Multiply(i64, i64, usize),
@@ -28,16 +34,6 @@ struct IntcodeComputer {
     relative_base: i64
 }
 
-fn read_parameter_mode(param_num: usize, param_modes: &Vec<u8>) -> Mode {
-    if param_num > param_modes.len() || param_modes[param_num] == 0 {
-        Mode::Position
-    } else if param_modes[param_num] == 1 {
-        Mode::Immediate
-    } else {
-        Mode::Relative
-    }
-}
-
 fn parse_program(program: &'static str) -> Vec<i64> {
     program.split(',').map(|n| n.parse::<i64>().unwrap()).collect::<Vec<i64>>()
 }
@@ -54,24 +50,37 @@ impl IntcodeComputer {
         }
     }
 
-    //TODO: fix up addressing memory
+    fn check_for_resize(&mut self, addr: usize) {
+        if addr >= self.memory.len() {
+            self.memory.resize(addr+1, 0);
+        }
+    }
 
-    fn get_next_param_val(&mut self, param_mode : Mode) -> i64 {
-        let value = match param_mode {
-            Mode::Position => self.memory[self.memory[self.pointer] as usize],
-            Mode::Immediate => self.memory[self.pointer],
-            Mode::Relative => unimplemented!()
+    fn read(&mut self, addr: usize) -> i64 {
+        self.check_for_resize(addr);
+        self.memory[addr]
+    }
+
+    fn write(&mut self, addr: usize, val: i64) {
+        self.check_for_resize(addr);
+        self.memory[addr] = val;
+    }
+
+    fn read_next_parameter(&mut self, param_type: Type, param_mode: Mode) -> i64 {
+        let address = match param_mode {
+            Mode::Position => self.read(self.pointer) as usize,
+            Mode::Immediate => self.pointer,
+            Mode::Relative => (self.relative_base + self.read(self.pointer)) as usize
+        };
+
+        let read_param = match param_type {
+            Type::Parameter => self.read(address),
+            Type::Address => address as i64
         };
 
         self.pointer += 1;
-        
-        return value;
-    }
 
-    fn get_next_param_addr(&mut self) -> usize {
-        let addr = self.memory[self.pointer] as usize;
-        self.pointer += 1;
-        return addr;
+        return read_param;
     }
 
     fn split_instruction(&mut self) -> Vec<u8> {
@@ -115,13 +124,22 @@ impl IntcodeComputer {
 
         let opcode = instruction[0];
 
-        let param_modes : Vec<u8> = if instruction.len() > 2 { instruction[2..].to_vec() } else { vec!() };
+        let mut param_stack : Vec<Mode> = if instruction.len() > 2 { 
+            instruction[2..].iter().rev().map(|p| {
+                match p {
+                    0 => Mode::Position,
+                    1 => Mode::Immediate,
+                    2 => Mode::Relative,
+                    _ => panic!("Unknown parameter mode.")
+                }
+            }).collect() 
+        } else { vec!() };
 
         match opcode {
             1 | 2 | 7 | 8 => {
-                let p1 = self.get_next_param_val(read_parameter_mode(0, &param_modes));
-                let p2 = self.get_next_param_val(read_parameter_mode(1, &param_modes));
-                let addr = self.get_next_param_addr();
+                let p1 = self.read_next_parameter(Type::Parameter, param_stack.pop().unwrap_or(Mode::Position));
+                let p2 = self.read_next_parameter(Type::Parameter, param_stack.pop().unwrap_or(Mode::Position));
+                let addr = self.read_next_parameter(Type::Address, param_stack.pop().unwrap_or(Mode::Position)) as usize;
 
                 if opcode == 1 {
                     Instruction::Add(p1, p2, addr)
@@ -133,20 +151,18 @@ impl IntcodeComputer {
                     Instruction::Equals(p1, p2, addr)
                 }
             },
-            3 => Instruction::Input(self.get_next_param_addr()),
-            4 => Instruction::Output(self.get_next_param_val(read_parameter_mode(0, &param_modes))),
+            3 => Instruction::Input(self.read_next_parameter(Type::Address, param_stack.pop().unwrap_or(Mode::Position)) as usize),
+            4 => Instruction::Output(self.read_next_parameter(Type::Parameter, param_stack.pop().unwrap_or(Mode::Position))),
             5 | 6 => {
-                let p1 = self.get_next_param_val(read_parameter_mode(0, &param_modes));
-                let p2 = self.get_next_param_val(read_parameter_mode(1, &param_modes));
+                let p1 = self.read_next_parameter(Type::Parameter, param_stack.pop().unwrap_or(Mode::Position));
+                let p2 = self.read_next_parameter(Type::Parameter, param_stack.pop().unwrap_or(Mode::Position));
                 if opcode == 5 {
                     Instruction::JumpIfTrue(p1, p2)
                 } else {
                     Instruction::JumpIfFalse(p1, p2)
                 }
             },
-            9 => {
-                Instruction::RelativeBaseOffset(self.get_next_param_val(read_parameter_mode(0, &param_modes)))
-            },
+            9 => Instruction::RelativeBaseOffset(self.read_next_parameter(Type::Parameter, param_stack.pop().unwrap_or(Mode::Position))),
             _ => panic!("Unknown instruction opcode")
         }
     }
@@ -157,17 +173,20 @@ impl IntcodeComputer {
 
         loop {
             match self.next_instruction() {
-                Instruction::Add(p1, p2, addr) => self.memory[addr] = p1 + p2,
-                Instruction::Multiply(p1, p2, addr) => self.memory[addr] = p1 * p2,
-                Instruction::Input(addr) => self.memory[addr] = self.next_input(),
+                Instruction::Add(p1, p2, addr) => self.write(addr, p1+p2),
+                Instruction::Multiply(p1, p2, addr) => self.write(addr, p1*p2),
+                Instruction::Input(addr) => {
+                    let input = self.next_input();
+                    self.write(addr, input);
+                },
                 Instruction::Output(p) => {
                     self.last_result = Some(p);
                     break;
                 },
                 Instruction::JumpIfTrue(p1, p2) => self.pointer = if p1 != 0 { p2 as usize } else { self.pointer },
                 Instruction::JumpIfFalse(p1, p2) => self.pointer = if p1 == 0 { p2 as usize } else { self.pointer },
-                Instruction::LessThan(p1, p2, addr) => self.memory[addr] = if p1 < p2 { 1 } else { 0 },
-                Instruction::Equals(p1, p2, addr) => self.memory[addr] = if p1 == p2 { 1 } else { 0 },
+                Instruction::LessThan(p1, p2, addr) => self.write(addr, if p1 < p2 { 1 } else { 0 }),
+                Instruction::Equals(p1, p2, addr) => self.write(addr, if p1 == p2 { 1 } else { 0 }),
                 Instruction::RelativeBaseOffset(p1) => self.relative_base += p1,
                 Instruction::Halt => {
                     self.last_result = None;
@@ -178,27 +197,50 @@ impl IntcodeComputer {
 
         self.last_result
     }
-
-    fn get_last_result(&self) -> Option<i64> {
-        self.last_result
-    }
 }
 
 fn main() {
-    let mut boost_comp = IntcodeComputer::new(&parse_program(include_str!("../input/day_9.txt")));
+    let program = parse_program(include_str!("../input/day_9.txt"));
+    let mut boost_comp = IntcodeComputer::new(&program);
     let mut output = boost_comp.run(vec!(1));
     let mut last_out_val = 0;
+
     while output.is_some() {
         last_out_val = output.unwrap();
         output = boost_comp.run(vec!());
     }
 
     println!("Part 1 => {}", last_out_val);
+    println!("Part 2 => {}", IntcodeComputer::new(&program).run(vec!(2)).unwrap());
 }
 
 #[test]
-fn part_1_test() {
-    let mut prog = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
-    println!("{}", IntcodeComputer::new(prog).run(vec!()));
-    assert_eq!(false);
+fn quine_test() {
+    let prog = parse_program("109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99");
+    let mut comp = IntcodeComputer::new(&prog);
+    let mut output = vec!();
+
+    loop {
+        let next_output = comp.run(vec!());
+        if next_output.is_none() {
+            break;
+        }
+        output.push(next_output.unwrap());
+    }
+
+    assert_eq!(output, prog);
+}
+
+#[test]
+fn sixteen_digit_output() {
+    let prog = parse_program("1102,34915192,34915192,7,4,7,99,0");
+    let output = IntcodeComputer::new(&prog).run(vec!()).unwrap();
+    assert_eq!(output.to_string().len(), 16);
+}
+
+#[test]
+fn large_number() {
+    let prog = parse_program("104,1125899906842624,99");
+    let output = IntcodeComputer::new(&prog).run(vec!()).unwrap();
+    assert_eq!(output, 1125899906842624);
 }
