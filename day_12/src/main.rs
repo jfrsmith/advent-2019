@@ -1,11 +1,4 @@
-#![feature(test)]
-extern crate test;
-
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
-
-#[derive(Debug, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 struct State {
     positions: Vec<(i32, i32, i32)>,
     velocities: Vec<(i32, i32, i32)>,
@@ -113,23 +106,23 @@ fn get_total_energy(state: &State) -> i32 {
         .sum()
 }
 
-fn hash_state(state: &State) -> u64 {
+/*fn hash_state(state: &State) -> u64 {
     let mut hasher = DefaultHasher::new();
     state.hash(&mut hasher);
     hasher.finish()
-}
+}*/
 
 fn run(input: &'static str, num_ticks: Option<i64>) -> (i32, i64) {
-    let mut state = parse_state(input);
+    let initial_state = parse_state(input);
+    let mut state = initial_state.clone();
     let max_ticks = num_ticks.unwrap_or(std::i64::MAX);
     let mut tick_cnt = 0;
-    let mut seen_states = HashSet::new();
 
     while tick_cnt < max_ticks {
         tick_state_mut(&mut state);
         tick_cnt += 1;
 
-        if !seen_states.insert(hash_state(&state)) {
+        if state == initial_state {
             break;
         }
     }
@@ -147,11 +140,6 @@ fn main() {
         "Part 2 => {}",
         run(include_str!("../input/day_12.txt"), None).1
     );
-}
-
-#[bench]
-fn benchmark_test(bench: &mut test::Bencher) {
-    bench.iter(|| run(include_str!("../input/day_12.txt"), Some(100)))
 }
 
 #[test]
@@ -181,16 +169,5 @@ fn seen_state() {
     <x=2, y=-7, z=3>
     <x=9, y=-8, z=-3>";
 
-    //assert_eq!(run(&input, None).1, 4686774924);
-}
-
-#[test]
-fn long_test() {
-    let input = "<x=-8, y=-10, z=0>
-    <x=5, y=5, z=10>
-    <x=2, y=-7, z=3>
-    <x=9, y=-8, z=-3>";
-
-    run(&input, Some(1000000));
-    assert_eq!(false, true);
+    assert_eq!(run(&input, None).1, 4686774924);
 }
