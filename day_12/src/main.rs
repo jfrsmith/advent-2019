@@ -1,7 +1,10 @@
+type CoOrd = (i32, i32, i32);
+const MOON_COUNT: usize = 4;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 struct State {
-    positions: Vec<(i32, i32, i32)>,
-    velocities: Vec<(i32, i32, i32)>,
+    positions: [CoOrd; MOON_COUNT],
+    velocities: [CoOrd; MOON_COUNT],
 }
 
 fn parse_state(input: &'static str) -> State {
@@ -16,18 +19,14 @@ fn parse_state(input: &'static str) -> State {
         })
         .collect::<Vec<Vec<i32>>>();
 
-    let mut positions = vec![];
-    let mut velocities = vec![];
-
-    for moon in moon_coords {
-        assert!(moon.len() == 3);
-        positions.push((moon[0], moon[1], moon[2]));
-        velocities.push((0, 0, 0));
-    }
-
     State {
-        positions,
-        velocities,
+        positions : [
+            (moon_coords[0][0], moon_coords[0][1], moon_coords[0][2]),
+            (moon_coords[1][0], moon_coords[1][1], moon_coords[1][2]),
+            (moon_coords[2][0], moon_coords[2][1], moon_coords[2][2]),
+            (moon_coords[3][0], moon_coords[3][1], moon_coords[3][2])
+        ],
+        velocities : [(0,0,0),(0,0,0),(0,0,0),(0,0,0)]
     }
 }
 
@@ -47,38 +46,9 @@ fn get_gravity(a: &(i32, i32, i32), b: &(i32, i32, i32)) -> (i32, i32, i32) {
     )
 }
 
-/*fn tick_state(prev_state: &State) -> State {
-    let mut new_velocities = prev_state.velocities.clone();
-    let mut new_positions = prev_state.positions.clone();
-
-    for (i, p) in prev_state.positions.iter().enumerate() {
-        for j in 0..prev_state.positions.len() {
-            if *p != prev_state.positions[j] {
-                let gravity_adjustment = get_gravity(*p, prev_state.positions[j]);
-                new_velocities[i].0 += gravity_adjustment.0;
-                new_velocities[i].1 += gravity_adjustment.1;
-                new_velocities[i].2 += gravity_adjustment.2;
-            }
-        }
-    }
-
-    for i in 0..new_positions.len() {
-        new_positions[i].0 += new_velocities[i].0;
-        new_positions[i].1 += new_velocities[i].1;
-        new_positions[i].2 += new_velocities[i].2;
-    }
-
-    State {
-        positions: new_positions,
-        velocities: new_velocities,
-    }
-}*/
-
 fn tick_state_mut(state: &mut State) {
-    let num_moons = state.positions.len();
-
-    for i in 0..num_moons {
-        for j in 0..num_moons {
+    for i in 0..MOON_COUNT {
+        for j in 0..MOON_COUNT {
             if state.positions[i] != state.positions[j] {
                 let gravity_adjustment = get_gravity(&state.positions[i], &state.positions[j]);
                 state.velocities[i].0 += gravity_adjustment.0;
@@ -88,7 +58,7 @@ fn tick_state_mut(state: &mut State) {
         }
     }
 
-    for i in 0..num_moons {
+    for i in 0..MOON_COUNT {
         state.positions[i].0 += state.velocities[i].0;
         state.positions[i].1 += state.velocities[i].1;
         state.positions[i].2 += state.velocities[i].2;
@@ -105,12 +75,6 @@ fn get_total_energy(state: &State) -> i32 {
         })
         .sum()
 }
-
-/*fn hash_state(state: &State) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    state.hash(&mut hasher);
-    hasher.finish()
-}*/
 
 fn run(input: &'static str, num_ticks: Option<i64>) -> (i32, i64) {
     let initial_state = parse_state(input);
