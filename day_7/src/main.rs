@@ -27,7 +27,7 @@ impl Thrusters {
             .iter()
             .enumerate()
             .fold(0, |input, (i, setting)| {
-                amps[i].run(vec![*setting, input]).unwrap()
+                *amps[i].run(vec![*setting, input]).last().unwrap()
             });
 
         if !self.feedback_loop {
@@ -35,7 +35,7 @@ impl Thrusters {
         }
 
         loop {
-            if (0..amps.len() - 1).all(|i| amps[i].get_last_result().is_none()) {
+            if (0..amps.len() - 1).all(|i| amps[i].finished()) {
                 return last_output;
             }
 
@@ -44,7 +44,7 @@ impl Thrusters {
                 .iter()
                 .enumerate()
                 .fold(last_output, |input, (i, _)| {
-                    amps[i].run(vec![input]).unwrap_or(input)
+                    *amps[i].run(vec![input]).last().unwrap_or(&input)
                 });
         }
     }

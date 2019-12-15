@@ -5,7 +5,7 @@ fn main() {
     println!(
         "Part 1 => {}",
         IntcodeComputer::new(&prog)
-            .run_until_halt(vec!(1))
+            .run(vec!(1))
             .last()
             .unwrap()
     );
@@ -13,7 +13,7 @@ fn main() {
     println!(
         "Part 2 => {}",
         IntcodeComputer::new(&prog)
-            .run_until_halt(vec!(5))
+            .run(vec!(5))
             .last()
             .unwrap()
     );
@@ -23,7 +23,7 @@ fn main() {
 fn part_1_complete() {
     assert_eq!(
         *IntcodeComputer::new(&parse_program(include_str!("../input/day_5.txt")))
-            .run_until_halt(vec!(1))
+            .run(vec!(1))
             .last()
             .unwrap(),
         4887191
@@ -34,7 +34,7 @@ fn part_1_complete() {
 fn part_2_complete() {
     assert_eq!(
         *IntcodeComputer::new(&parse_program(include_str!("../input/day_5.txt")))
-            .run_until_halt(vec!(5))
+            .run(vec!(5))
             .last()
             .unwrap(),
         3419022

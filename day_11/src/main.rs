@@ -72,19 +72,13 @@ impl PaintBot {
     }
 
     fn tick(&mut self) -> bool {
+        if self.brain.finished() {
+            return false;
+        }
+
         let panel_color = self.grid.get(&self.location).unwrap_or(&0);
-
-        let new_color = match self.brain.run(vec![*panel_color as i64]) {
-            Some(x) => x as u8,
-            None => return false,
-        };
-
-        self.paint_panel(self.location, new_color);
-
-        match self.brain.run(vec![]) {
-            Some(x) => self.rotate_and_move(if x == 0 { Rotate::Left } else { Rotate::Right }),
-            None => return false,
-        };
+        self.paint_panel(self.location, (*self.brain.run(vec![*panel_color as i64]).last().unwrap()) as u8);
+        self.rotate_and_move(if *(self.brain.run(vec![]).last().unwrap()) == 0 { Rotate::Left } else { Rotate::Right });
 
         true
     }
